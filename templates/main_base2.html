@@ -1,0 +1,17 @@
+{% extends "main_base.html" %}
+
+{% block css %}
+{{ super() }}
+<link rel="stylesheet" 
+      type="text/css" 
+      media="screen"
+      href="css/main_mainbase.css" />
+{% endblock css %}
+
+{% block content %}
+<div id="main">
+  {% block main %}
+  {% endblock main %}
+  <div class="clear"></div>
+</div>
+{% endblock content %}

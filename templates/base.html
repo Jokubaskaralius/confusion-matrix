@@ -1,0 +1,59 @@
+{% block doctype %}
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+{% endblock doctype %}
+<html>
+  <head>
+    {% block head %}
+
+    <title>{% block title %}Default title{% endblock title %}</title>
+
+    {% block meta %}
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <meta name="description" content="{% block meta_description %}Default meta description{% endblock meta_description %}" />
+    <meta name="keywords" content="{% block meta_keywords %}Default keywords{% endblock meta_keywords %}" />
+    {% endblock meta %}
+
+    {% block image_src %}
+    <link rel="image_src"
+	  href="{{MEDIA_URL}}main/img/favicon.ico" />
+    {% endblock image_src %}
+
+    {% block favicon %}
+    <link rel="shortcut icon"
+	  href="{{MEDIA_URL}}main/img/favicon.ico" />
+    {% endblock favicon %}
+
+    {# empty by default #}
+    {% block rss %}
+    {% endblock rss %}
+
+    {% block uncompressed_css %}
+    {% endblock uncompressed_css %}
+
+    {% block uncompressed_js %}
+    {% endblock uncompressed_js %}
+
+    {% block css %}
+    <link rel="stylesheet" 
+	  type="text/css"
+	  href="css/common_reset.css" />
+    {% endblock css %}
+
+    {% block js %}
+    {% endblock js %}
+
+  {% endblock head %}
+  </head>
+
+  {% block body_tag %}
+  <body>
+  {% endblock body_tag %}
+
+    {% block body %}
+    {% endblock body %}
+    
+    {% block dynamic_javascript %}
+    {% endblock dynamic_javascript %}
+  </body>
+  
+</html>

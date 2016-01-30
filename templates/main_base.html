@@ -1,0 +1,39 @@
+{% extends "base_centered_wide.html" %}
+
+{% block title%}Daegis T.A.R. Monitor{% endblock title%}
+
+
+{# insert the relative_urls template tag in the head block #}
+{% block head %}
+{{ super() }}
+{% endblock head %}
+
+{# insert the relative_urls template tag in the body block #}
+{% block body %}
+{{ super() }}
+{% endblock body %}
+
+{# insert the relative_urls template tag in the dynamic_javascript blog #}
+{% block dynamic_javascript %}
+{% block inner_dynamic_javascript %}
+{{ super() }}
+{% endblock inner_dynamic_javascript %}
+{% endblock dynamic_javascript %}
+
+{# omit the meta tags #}
+{% block meta %}
+{% endblock meta %}
+
+{% block css %}
+{{ super() }}
+<link rel="stylesheet" 
+      type="text/css" 
+      href="css/main_base.css" />
+{% endblock css %}
+
+{% block header %}
+<img id="logo" src="img/sexy2logo.png" />
+{% endblock header %}
+
+{% block footer %}
+{% endblock footer %}

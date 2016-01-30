@@ -1,0 +1,25 @@
+html {
+  font-family: sans-serif;
+  background: #eee; }
+
+.wrapper {
+  width: 960px;
+  margin: 0px auto; }
+
+#header {
+  min-height: 80px;
+  background: #666; }
+  #header h1 {
+    font-size: 40px;
+    font-weight: bold;
+    line-height: 80px;
+    color: #eee; }
+
+#content {
+  padding-top: 15px;
+  padding-bottom: 15px;
+  background: #fff; }
+
+#footer {
+  background: #eee;
+  line-height: 2em; }

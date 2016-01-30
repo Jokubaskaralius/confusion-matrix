@@ -1,0 +1,170 @@
+@import "dsa_colors";
+
+$pad: 20px;
+
+@mixin shadow($size, $color) {
+  box-shadow:0px $size/4 $size $color;
+  -moz-box-shadow:0px $size/4 $size $color;
+  -webkit-box-shadow:0px $size/4 $size $color;
+}
+
+@mixin rounded($radius) {
+  -webkit-border-radius: $radius;
+  -moz-border-radius: $radius;
+  border-radius: $radius;
+}
+
+html {
+  font-family: MuseoSans500;
+  $body_color: $very_light_grey;
+}
+
+$body_color: #fff;
+body {
+  -webkit-font-smoothing: subpixel-antialiased;
+}
+
+$width: 1024px;
+.wrapper {
+  width: $width;
+  background: $body_color;
+}
+
+$main_height: 575px;
+$footer_color: $very_light_grey;
+$navbutton_width: 88px;
+$pad: 15px;
+$button_size: 60px;
+$button_border: 5px;
+$header_height: 100px;
+$navbar_width: 3 * $width / 5;
+$navbar_height: $header_height;
+$navbar_color: white;
+#header {
+  height: $navbar_height;
+  
+  margin: 0px;
+  background-color: $body_color;
+  padding: {
+    top: 0px;
+    bottom:15px;
+  };
+  #logo {
+    padding: {
+      left: $pad*3;
+      top: $pad;
+    };
+    float: left;
+    height: $navbar_height - $pad;
+  }
+  #navbar {
+    float: right;
+    height: $navbar_height;
+    background-image:url("../img/divider.png");
+    background-repeat:no-repeat;
+
+    a {
+      text-decoration: none;
+      .navbutton {
+
+	padding: {
+	  left: $pad;
+	  right: $pad;
+	  top:0px;
+	  bottom: 0px;
+	};
+	width: $navbutton_width;;
+	height: $navbar_height - 2 * $pad;
+	float: left;
+	text-align: center;
+	&.active {
+	  background: -webkit-linear-gradient(rgba(63,71,77,0.14) 0%,rgba(255,255,255,0) 100%);
+
+	  h3 {
+	    color: $dark_grey;
+	  }
+	  .button {
+	    border: $button_border solid $dark_grey;
+	    span {
+	      color: $dark_grey;
+	    }
+	  }
+	}
+	.button {
+	  margin: 0px auto;
+	  margin-top:$pad;
+	  border: $button_border solid mix($light_grey,$grey,50%);
+	  width: $button_size - 2 * $button_border;
+	  height: $button_size - 2 * $button_border;
+	  background: $body_color;
+	  @include rounded($button_size);
+	  span {
+	    font-size: 0.75 * ($button_size - 2 * $button_border);
+	    color: mix($light_grey,$grey,50%);
+	    line-height: $button_size - 2 * $button_border;
+	  }
+	}
+	h3 {
+	  padding-top: $navbar_height - $button_size - $pad*2;
+	  font-size: $pad;
+	  line-height: $pad;
+	  color: mix($light_grey,$grey,50%);
+	  text-transform: uppercase;
+	  height: $pad;
+	  background: $body_color;
+	}
+	&:hover {
+	  background: -webkit-linear-gradient(rgba(63,71,77,0.14) 0%,rgba(255,255,255,0) 100%);
+
+	  h3 {
+	    color: $dark_grey;
+	    text-decoration: overline underline;
+	  }
+	  .button {
+	    border: $button_border solid $dark_grey;
+	    span {
+	      color: $dark_grey;
+	    }
+	  }
+	}
+      }
+    }
+  }
+}
+
+#content {
+  background: $body_color;
+  padding: 0px;
+  margin: 0px;
+}
+
+#main {
+  height: $main_height - 2 * $pad;
+  /* background: $very_light_grey; */
+  padding: 12px;
+  margin: 0px;
+}
+
+#footer {
+  /* display: none; */
+  border: {
+    top: 1px solid $light_grey;
+  };
+  background: $footer_color;
+  #revision {
+    /* display: none; */
+    float: right;
+    text-align: right;
+    margin-top: 0px;
+    p {
+      /* display: none; */
+      color: $dark_grey;
+      font-size: 10px;
+      line-height: 14px;
+      display: inline-block;
+      padding: {
+	right: $pad;
+      };
+    }
+  }
+}

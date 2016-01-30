@@ -1,0 +1,44 @@
+{% extends "main_base2.html" %}
+
+{% block css %}
+{{ super() }}
+<link rel="stylesheet" type="text/css" media="screen" 
+      href="https://cdnjs.cloudflare.com/ajax/libs/jquery.tiptip/1.3/tipTip.min.css" />
+<link rel="stylesheet" type="text/css" media="screen" 
+      href="css/main_confusion_matrix.css" />
+{% endblock css %}
+
+{% block js %}
+{{ super() }}
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.6.4/jquery.min.js"></script>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery.tiptip/1.3/jquery.tipTip.minified.js"></script>  
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.2.0/underscore-min.js"></script>  
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/underscore.string/3.2.3/underscore.string.min.js"></script>  
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/backbone.js/0.5.3/backbone-min.js"></script>  
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.0.0/raphael-min.js"></script>  
+
+{% endblock js %}
+
+{% block main %}
+
+<div id="confusion_matrix"></div>
+
+{% endblock main %}
+
+{% block inner_dynamic_javascript %}
+<script type="text/javascript"> 
+{% include "confusion_models.js" %}
+</script>  
+
+<script type="text/javascript"> 
+{% include "confusion_views.js" %}
+</script>  
+
+<script type="text/javascript">
+{% include "confusion_matrix.js" %}
+</script>  
+
+
+{% endblock inner_dynamic_javascript %}

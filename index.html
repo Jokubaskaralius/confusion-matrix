@@ -1,0 +1,1278 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html>
+  <head>
+    
+
+
+    <title>Daegis T.A.R. Monitor</title>
+
+    
+
+
+    
+    <link rel="image_src"
+	  href="main/img/favicon.ico" />
+    
+
+    
+    <link rel="shortcut icon"
+	  href="main/img/favicon.ico" />
+    
+
+    
+    
+    
+
+    
+    
+
+    
+    
+
+    
+
+
+
+
+    <link rel="stylesheet" 
+	  type="text/css"
+	  href="css/common_reset.css" />
+    
+<link rel="stylesheet" 
+      type="text/css" 
+      href="css/common_centered_wide.css" />
+
+<link rel="stylesheet" 
+      type="text/css" 
+      href="css/main_base.css" />
+
+<link rel="stylesheet" 
+      type="text/css" 
+      media="screen"
+      href="css/main_mainbase.css" />
+
+<link rel="stylesheet" type="text/css" media="screen" 
+      href="https://cdnjs.cloudflare.com/ajax/libs/jquery.tiptip/1.3/tipTip.min.css" />
+<link rel="stylesheet" type="text/css" media="screen" 
+      href="css/main_confusion_matrix.css" />
+
+
+    
+
+    
+
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.6.4/jquery.min.js"></script>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery.tiptip/1.3/jquery.tipTip.minified.js"></script>  
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.2.0/underscore-min.js"></script>  
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/underscore.string/3.2.3/underscore.string.min.js"></script>  
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/backbone.js/0.5.3/backbone-min.js"></script>  
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.0.0/raphael-min.js"></script>  
+
+
+
+  
+
+  </head>
+
+  
+  <body>
+  
+
+    
+
+<div id="header">
+  <div class="wrapper">
+    
+<img id="logo" src="img/sexy2logo.png" />
+
+  </div>
+  <div class="clear"></div>
+</div>
+
+<div id="content">
+  <div class="wrapper">
+    
+<div id="main">
+  
+
+<div id="confusion_matrix"></div>
+
+
+  <div class="clear"></div>
+</div>
+
+  </div>
+  <div class="clear"></div>
+</div>
+
+<div id="footer">
+  <div class="wrapper">
+    
+
+  </div>
+  <div class="clear"></div>
+</div>
+
+
+    
+    
+
+<script type="text/javascript"> 
+"use strict";
+
+// this is the only variable that gets added to the global
+// namespace. stole this syntax from d3
+var confusion = {version: "0.0.1"};
+
+"use strict";
+(function(){
+
+    // add models to the namespace
+    confusion.models = {};
+
+    // add Observation to the models namespace
+    confusion.models.Observation = Backbone.Model.extend({
+
+	defaults: {
+	    quadrant: null
+	},
+
+	initialize: function (args) {
+
+	    _.extend(this, Backbone.Events);
+
+	    // store a reference to the matrix for convenience
+	    this.matrix = args.matrix;
+
+	},
+
+	// convenience method for identifying tp, fp, fn, tn labels
+	quadrant_label: function () {
+	    return this.get("quadrant").label();
+	},
+	
+	validate: function (args) {
+
+	    // each observation belongs to one and only one quadrant
+	    if (_.isNull(args.quadrant)) {
+		return "quadrant for this observation has not been defined";
+	    }
+
+	}
+
+    });
+
+    confusion.models.Quadrant = Backbone.Model.extend({
+
+	defaults: {
+	    // TN by default
+	    is_correct: true,
+	    is_positive: false
+	},
+
+	initialize: function (args) {
+
+	    // every quadrant consists of a collection of observations
+	    var observation_collection = Backbone.Collection.extend({
+		model: confusion.models.Observation
+
+	    });
+	    this.observations = new observation_collection();
+
+	    // store a reference to the matrix parent object for
+	    // convenience
+	    this.matrix = args.matrix;
+	    
+	},
+
+	// method to get the common label for the quadrant
+	label: function () {
+	    if (this.get("is_correct")) {
+		if (this.get("is_positive")) {
+		    return "tp";
+		}
+		else {
+		    return "tn";
+		}
+	    }
+	    else {
+		if (this.get("is_positive")) {
+		    return "fn";
+		}
+		else {
+		    return "fp";
+		}
+	    }
+	},
+
+	validate: function (args) {
+
+	}
+
+    });
+
+    // add Observation to the models namespace
+    confusion.models.Matrix = Backbone.Model.extend({
+
+	defaults: {
+	    n_observations: Math.pow(25, 2),
+
+	    epsilon: 0.001,
+	    prevalence: 0.2,
+	    precision: 0.7,
+	    recall: 0.9
+	},
+
+	initialize: function (args) {
+
+	    // extend this model to listen for events
+	    _.extend(this, Backbone.Events);
+	    this.bind("change:prevalence", this.change_prevalence, this);
+	    this.bind("change:precision", this.change_precision, this);
+	    this.bind("change:recall", this.change_recall, this);
+
+	    // instantiate all of the quadrants. each quadrant is in
+	    // charge of keeping track of each observation instance
+	    // that is in this quadrant
+	    var bools = [true, false];
+	    this.quadrants = {};
+	    _.each(bools, function (is_correct) {
+		_.each(bools, function (is_positive) {
+		    var quadrant = new confusion.models.Quadrant({
+			is_correct: is_correct,
+			is_positive: is_positive,
+			matrix: this
+		    });
+		    this.quadrants[quadrant.label()] = quadrant;
+		}, this);
+	    }, this);
+	    
+	    // every matrix has a collection of observations
+	    var observation_collection = Backbone.Collection.extend({
+		model: confusion.models.Observation,
+
+		initialize: function (args, opts) {
+
+		    // call the super initialize method
+		    Backbone.Collection.prototype.initialize.call(
+			this, args, opts
+		    );
+
+		    // attach the matrix model to this collection
+		    this.matrix = opts.matrix;
+
+		    // extend this class to maintain all of the
+		    // quadrant collections at the same time
+		    _.extend(this, Backbone.Events);
+		    this.bind("add", this.add_to_quadrant, this);
+		    this.bind("remove", this.remove_from_quadrant, this);
+		    this.bind("change:quadrant", this.change_quadrant, this);
+		},
+
+		add_to_quadrant: function (observation) {
+		    var label = observation.get("quadrant").label();
+		    this.matrix.quadrants[label].observations.add(observation);
+		},
+		
+		remove_from_quadrant: function () {
+		    throw("remove_from_quadrant not implemented yet");
+		},
+		
+		change_quadrant: function (observation, quadrant, opts) {
+		    var l = observation.get("quadrant").label();
+		    var pl = observation.previous("quadrant").label();
+		    this.matrix.quadrants[pl].observations.remove(observation);
+		    this.matrix.quadrants[l].observations.add(observation);
+		    observation.trigger("quadrant_changed", {});
+		}
+
+	    });
+	    this.observations = new observation_collection([], {matrix: this});
+
+	    // instantiate the collection of observations
+	    _.each(_.range(args.n_observations), function (e, i, l) {
+		var obs = new confusion.models.Observation({
+		    quadrant: this.choose_quadrant(i),
+		    matrix: this
+		});
+		this.observations.add(obs);
+	    }, this);
+
+	    
+
+	},
+
+	set: function (attrs, opts) {
+	    Backbone.Model.prototype.set.call(this, attrs, opts);
+
+	    // provide functionality for triggering the change:f1
+	    // event anytime the recall, precision, or prevalence is
+	    // changed. This is a quick and dirty way of emulating
+	    // ember's computed properties functionality. 
+	    // http://emberjs.com/documentation/#toc_computed-properties-getters
+	    if ("recall" in attrs || 
+		"precision" in attrs || 
+		"prevalence" in attrs) {
+		this.trigger("change:f1");
+	    }
+	},
+	
+	random_quadrant: function () {
+	    var result = {
+		is_correct: false,
+		is_positive: true
+	    };
+
+	    // is this observation truly positive?
+	    var error_rate;
+	    if (Math.random() < this.get("prevalence")) {
+		result.is_positive = true;
+		error_rate = this.fnr();
+	    }
+ 	    else {
+		result.is_positive = false;
+		error_rate = this.fpr();
+	    }
+
+	    // is this observation a mistake?
+	    if (Math.random() < error_rate) {
+		result.is_correct = false;
+	    }
+	    else {
+		result.is_correct = true;
+	    }
+
+	    // return the correct quadrant
+	    if (result.is_correct && result.is_positive) {
+		return this.quadrants["tp"];
+	    }
+	    else if (result.is_correct && !result.is_positive) {
+		return this.quadrants["tn"];
+	    }
+	    else if (!result.is_correct && result.is_positive) {
+		return this.quadrants["fn"];
+	    }
+	    else if (!result.is_correct && !result.is_positive) {
+		return this.quadrants["fp"];
+	    }
+	    else {
+		throw("huh? what quadrant are you looking for anyway");
+	    }
+
+	},
+
+	cumulative_counts: function () {
+	    var cumulative = {};
+	    cumulative.tp = this.tp();
+	    cumulative.fn = cumulative.tp + this.fn();
+	    cumulative.fp = cumulative.fn + this.fp();
+	    cumulative.tn = cumulative.fp + this.tn();
+	    return cumulative;
+	},
+
+	choose_quadrant: function (index) {
+
+	    // calculate the cumulative number of observations in each
+	    // confusion matrix cell and choose a quadrant in a manner
+	    // that reduces the jitter as much as possible when
+	    // changing the controls.
+	    var cumulative = this.cumulative_counts();
+	    if ((cumulative.tn-this.get("n_observations"))>1) {
+		throw("cumulative count not equal to n_observations");
+	    }
+	    
+	    if (index<Math.round(cumulative.tp)) {
+		return this.quadrants["tp"];
+	    }
+	    else if (index<Math.round(cumulative.fn)) {
+		return this.quadrants["fn"];
+	    }
+	    else if (index<Math.round(cumulative.fp)) {
+		return this.quadrants["fp"];
+	    }
+	    else {
+		return this.quadrants["tn"];
+	    }
+	},
+
+	update_quadrants: function () {
+
+	    // count the change in the number of observations for each
+	    // quadrant
+	    var delta_count = {tp: 0, fn: 0, fp: 0, tn: 0};
+	    var quadrant = null;
+	    _.each(this.observations.models, function (o, i, l) {
+		quadrant = this.choose_quadrant(i);
+		delta_count[quadrant.label()] += 1;
+		delta_count[o.get("quadrant").label()] -= 1;
+	    }, this);
+
+	    // console.log(
+	    // 	delta_count.tp + ' ' +
+	    // 	delta_count.fn + ' ' +
+	    // 	delta_count.fp + ' ' +
+	    // 	delta_count.tn
+	    // );
+
+	    // first identify all of the observations that need to be
+	    // removed from one quadrant
+	    var observations, changing_quadrants = [];
+	    _.each(delta_count, function (count, label, object) {
+	    	observations = this.quadrants[label].observations.models;
+	    	if (count < 0) {
+	    	    _.each(_.last(observations, -count), function (o, i, l) {
+	    		changing_quadrants.push(o);
+	    	    }, this);
+	    	}
+	    }, this);
+
+	    // reset these observations into new quadrants
+	    var i = 0;
+	    _.each(delta_count, function (count, label, object) {
+	    	for (;count>0; count-=1) {
+		    changing_quadrants[i].set({
+			quadrant: this.quadrants[label]
+		    });
+		    i += 1;
+	    	}
+	    }, this);
+
+	},
+
+	change_prevalence: function (model, prevalence, opts) {
+	    this.update_quadrants();
+	},
+	change_precision: function (model, precision, opts) {
+	    this.update_quadrants();
+	},
+	change_recall: function (model, recall, opts) {
+	    this.update_quadrants();
+	},
+
+	// methods to calculate various statistical measures
+	n_responsive: function (attrs) {
+	    var prevalence = (attrs && attrs.prevalence) || this.get("prevalence");
+	    return this.get("n_observations")*prevalence;
+	},
+	n_nonresponsive: function (attrs) {
+	    var prevalence = (attrs && attrs.prevalence) || this.get("prevalence");
+	    return this.get("n_observations")*(1-prevalence);
+	},
+	precision_ratio: function (attrs) {
+	    var precision = (attrs && attrs.precision) || this.get("precision");
+	    return (1 - precision) / precision;
+	},
+	tp: function (attrs) {
+	    var recall = (attrs && attrs.recall) || this.get("recall");
+	    return this.n_responsive(attrs)*recall;
+	},
+	fn: function (attrs) {
+	    var recall = (attrs && attrs.recall) || this.get("recall");
+	    return this.n_responsive(attrs) * (1-recall);
+	},
+	tn: function (attrs) {
+	    return this.n_nonresponsive(attrs) - this.fp(attrs);
+	},
+	fp: function (attrs) {
+	    return Math.min(this.tp(attrs)*this.precision_ratio(attrs), 
+	    		    this.n_nonresponsive(attrs));
+	},
+	fpr: function () {
+	    var x = this.fp() / (this.tn() + this.fp());
+	    if (_.isNaN(x)) {
+		return 0;
+	    }
+	    return x;
+	},
+	fnr: function () {
+	    return 1.0 - this.get("recall");
+	},
+	f1: function () {
+	    var p = this.get("precision");
+	    var r = this.get("recall");
+	    var x = 2*p*r/(p+r);
+	    if (_.isNaN(x)) {
+		return 0;
+	    }
+	    return x;
+	},
+	accuracy: function () {
+	    var x = (this.tp() + this.tn()) / this.get("n_observations");
+	    if (_.isNaN(x)) {
+		return 0;
+	    }
+	    return x;
+	},
+	
+	is_valid_triplet: function (attrs) {
+	    var prevalence = attrs.prevalence || this.get("prevalence");
+	    var precision = attrs.precision || this.get("precision");
+	    var recall = attrs.recall || this.get("recall");
+	    var lt1 = prevalence*((1-precision)/precision*recall + 1);
+	    return (lt1<1);
+	},
+
+	reset_valid_triplet: function (attrs) {
+	    var prevalence = this.get("prevalence");
+	    var precision = this.get("precision");
+	    var recall = this.get("recall");
+
+	    // prevalence has been moved to an illegal value
+	    var x = {"reset": true};
+	    var epsilon=this.get("epsilon");
+	    if (attrs.prevalence !== undefined) {
+		x.prevalence = 1 / ((1-precision)/precision*recall + 1)-epsilon;
+	    }
+	    if (attrs.precision !== undefined) {
+		var a = (1/prevalence - 1)/recall;
+		x.precision = 1 / (1+a)+epsilon;
+	    }
+	    if (attrs.recall !== undefined) {
+		x.recall = (1/prevalence - 1) / ((1-precision)/precision) - epsilon;
+	    }
+	    this.set(x);
+	},
+
+	validate: function (attrs) {
+	    if (attrs.prevalence!==undefined && !_.isNumber(attrs.prevalence)) {
+		var msg = "prevalence must be a number";
+	    	return msg;
+	    }
+	    if (attrs.recall!==undefined && !_.isNumber(attrs.recall)) {
+		var msg = "recall must be a number";
+	    	return msg;
+	    }
+	    if (attrs.precision!==undefined && !_.isNumber(attrs.precision)) {
+		var msg = "precision must be a number";
+	    	return msg;
+	    }
+
+	    // check to confirm that this is a valid (prevalence,
+	    // precision, recall) triplet. If not, do not validate
+	    // this save
+	    if (!this.is_valid_triplet(attrs)) {
+		var attr_names = _.without(_.keys(attrs), "reset");
+
+		// this can have more than one attribute when the
+		// scenario buttons are pressed (which means that the
+		// scenario is out of bounds --- oy ve!)
+		if (attr_names.length === 1) {
+		    this.trigger("error:values", true, attr_names[0]);
+		    this.reset_valid_triplet(attrs);
+		}
+		var msg = "illegal (prevalence, precision, recall) triplet";
+		return msg;
+	    }
+	    if (attrs.reset !== true) {
+		this.trigger("error:values", false);
+	    }
+
+	}
+
+    });
+
+})();
+</script>  
+
+<script type="text/javascript"> 
+"use strict";
+
+(function(){
+
+    // add models to the networks namespace
+    confusion.views = {};
+
+    confusion.views.Observation = Backbone.View.extend({
+
+	events: {
+
+	},
+
+	attrs: {
+	    // "r": 5,
+	    "stroke": "none",
+	},
+
+	initialize: function (opts) {
+
+	    // call the super initialize method
+	    Backbone.View.prototype.initialize.call(this, opts);
+
+	    // add a reference to the view from the model
+	    this.model.view = this;
+
+	    // add a reference to the canvas for internal use
+	    this.canvas = opts.canvas;
+
+	    // create some blank raphael elements so that we can
+	    // properly associate the DOM element with the Raphael
+	    // object
+	    this.element = this.canvas.circle();
+
+	    // override reference to this.el to correctly refer to DOM
+	    // element for properly using backbone events
+	    this.el = this.element.node;
+
+	    // bind a change:quadrant event to the render method
+	    this.model.bind("quadrant_changed", this.render, this);
+
+	},
+
+	fill_attrs: function () {
+	    var q = this.model.get("quadrant");
+	    var attrs = q.view.fill_attrs();
+	    var is_positive = q.get("is_positive");
+	    var is_correct = q.get("is_correct");
+	    
+	    // coloring the dots
+	    _.extend(attrs, {
+	    	"stroke-width": 1.2,
+		"fill-opacity": 1,
+	    });
+
+	    if (is_positive) {
+	    	if (is_correct) { //TP, black
+	    	    attrs.fill = q.view.tp_color;
+		    attrs.stroke = "lightgrey";
+	    	}
+	    	else { // FN, red
+	    	    attrs.fill = q.view.tp_color;
+		    attrs.stroke = "lightgrey"
+	    	}
+	    }
+	    else {
+	    	if (is_correct){ // TN, white
+	    	    attrs.fill = q.view.tn_color;
+		    attrs.stroke = "grey";
+	    	}
+	    	else { // FP, yellow
+	    	    attrs.fill = q.view.tn_color;
+		    attrs.stroke = "grey";
+	    	}
+	    }
+
+	    return attrs;
+	},
+
+	render: function (opts) {
+
+	    // render the circle for this element
+	    var bounds = this.model.get("quadrant").view.inner_bounds;
+
+	    // calculate the radius of the event based on trying to
+	    // fit all of the observations in the same quadrant with
+	    // 'r' padding around each observation
+	    var n = this.model.matrix.get("n_observations");
+	    var sqrtn = Math.ceil(Math.sqrt(n));
+	    var r = bounds.w / (3*sqrtn + 1);
+
+	    // calculate the index of this element -- this might be
+	    // really slow...
+	    var a = _.indexOf(this.model.get("quadrant").observations.models, 
+			      this.model);
+	    var i = a % sqrtn;
+	    var j = Math.floor(a/sqrtn);
+
+	    var attrs = {
+		"r": r,
+		"cx": (3*i+2)*r + bounds.x,
+		"cy": (3*j+2)*r + bounds.y
+	    };
+	    
+	    _.extend(attrs, this.fill_attrs());
+
+	    this.element.attr(this.attrs);
+	    if (opts.initial !== undefined && opts.initial===true) {
+		this.element.attr(attrs);
+	    }
+	    else {
+		this.element.animate(attrs, 400, ">");
+	    }
+
+	    return this;
+	}
+
+    });
+
+    confusion.views.Quadrant = Backbone.View.extend({
+
+	events: {
+
+	},
+
+	attrs: {
+	    "cell": {
+		"fill": "none",
+		"stroke-width": 3,
+		"stroke": "black", //"rgb(196,196,196)",
+		"r": 0
+	    },
+	    "label": {
+		// "fill":	"rgb(156,156,156)",
+		"fill": "rgb(96,96,96)", //"rgb(196,196,196)"
+		"font-family": "CallunaSansRegular"
+	    }
+	},
+
+	initialize: function (opts) {
+
+	    // call the super initialize method
+	    Backbone.View.prototype.initialize.call(this, opts);
+
+	    // add a reference to the view from the model
+	    this.model.view = this;
+
+	    // save a reference to the canvas for internal use
+	    this.canvas = opts.canvas;
+
+	    // create some blank raphael elements so that we can
+	    // properly associate the DOM element with the Raphael
+	    // object
+	    this.cell = this.canvas.rect();
+	    this.label_back = this.canvas.text();
+	    this.label_front = this.canvas.text();
+	    this.label = this.canvas.set(this.label_back, this.label_front);
+
+	    // override reference to this.el to correctly refer to DOM
+	    // element for properly using backbone events
+	    this.el = this.cell.node;
+
+	    // since we manually overrode this.el, we need to rebind
+	    // events specified in the 'events' object
+	    this.delegateEvents(this.events);
+
+	    // placeholder object to keep track of inner bounds on
+	    // quadrant. this is calculated in the render method
+	    this.inner_bounds = null;
+
+	    // initialize all of the circles associated with this
+	    // Quadrant
+	    this.observations = [];
+	    _.each(this.model.observations.models, function (o, i, l) {
+		this.observations.push(new confusion.views.Observation({
+		    model: o,
+		    canvas: this.canvas
+		}));
+	    }, this);
+
+	},
+
+	tp_color: "black",
+	tn_color: "white",
+	fp_color: "rgb(0,55,166)",//"rgb(55,126,184)",
+	fn_color: "rgb(243,235,0)",//"rgb(228,26,28)",
+	
+	fill_attrs: function () {
+	    var attrs = {"fill": undefined, "fill-opacity": 0.5};
+	    var is_positive = this.model.get("is_positive");
+	    var is_correct = this.model.get("is_correct");
+
+	    if (is_correct) {
+		if (is_positive) { //true positive
+		    attrs.fill = this.tp_color;
+		    attrs["fill-opacity"] = 1;
+		}
+		else{ //true negative
+		    attrs.fill = this.tn_color
+		    attrs["fill-opacity"] = 1;
+		}
+	    }
+	    else{
+		if (is_positive) { //false positive
+		    attrs.fill = this.fp_color
+		}
+		else{ //false negative
+		    attrs.fill = this.fn_color
+		}
+	    }
+
+	    // if ((is_positive && is_correct) || (!is_positive && !is_correct)) {
+	    // 	attrs.fill = this.true_color;
+	    // }
+	    // else {
+	    // 	attrs.fill = this.false_color;
+	    // }
+	    return attrs;
+	},
+
+	render: function () {
+
+	    var i,j
+	    if (this.model.label() === "tp") {
+		i=0;
+		j=0;
+	    }
+	    else if (this.model.label() === "fp") {
+		i=0;
+		j=1;
+	    } 
+	    else if (this.model.label() === "fn") {
+		i=1;
+		j=0;
+	    } 
+	    else if (this.model.label() === "tn") {
+		i=1;
+		j=1;
+	    } 
+
+	    // add the confusion matrix
+	    var stroke = this.attrs.cell["stroke-width"];
+	    var size = (this.canvas.width-this.canvas.label_padding-stroke
+			-this.canvas.controls_padding)/2;
+	    var circle_radius = 5;
+
+	    // create the square boundary
+	    this.cell.attr({
+		x: stroke/2 + size*i + this.canvas.label_padding,
+	    	y: stroke/2 + size*j + this.canvas.label_padding,
+	    	width: size, 
+		height: size
+	    }).attr(this.attrs.cell).attr(this.fill_attrs());
+
+	    // create the text label
+	    this.label.attr({
+		x: stroke/2 + size*(i+0.5) + this.canvas.label_padding,
+		y: stroke/2 + size*(j+0.5) + this.canvas.label_padding,
+		text: this.model.label().toUpperCase(),
+	    }).attr(this.attrs.label).attr({
+		"font-size": this.canvas.large_font_size
+	    });
+	    this.label_back.attr({
+			"stroke": "none",
+			"stroke-width": 5
+			});
+	    if (this.model.label() === "tp" || this.model.label() === "fn"){
+		this.label.attr({
+			"fill":"rgb(255,255,255)"
+			    });
+	    }
+	    // remember the quadrant bounds
+	    this.inner_bounds = {
+	    	x: this.cell.attr("x") + stroke/2,
+	    	y: this.cell.attr("y") + stroke/2,
+	    	w: this.cell.attr("width") - stroke,
+	    	h: this.cell.attr("height") - stroke
+	    };
+
+	    // render all of the observations
+	    _.each(this.observations, function (v, i, l) {
+		v.render({initial: true});
+	    }, this);
+
+	    return this;
+	}
+
+    });
+
+    confusion.views.Controls = Backbone.View.extend({
+
+	events: {
+
+	    // // these refer to changing the sliders, which is now
+	    // // handled by jquery
+	    // "change .prevalence": "slider_prevalence",
+	    // "change .precision": "slider_precision",
+	    // "change .recall": "slider_recall",
+
+	    // these refer to changing the inputs
+	    "input .prevalence": "input_prevalence",
+	    "input .precision": "input_precision",
+	    "input .recall": "input_recall"
+	},
+
+	initialize: function (opts) {
+
+	    // bind change events to the render method
+	    this.model.bind("change:prevalence", this.change_prevalence, this);
+	    this.model.bind("change:precision", this.change_precision, this);
+	    this.model.bind("change:recall", this.change_recall, this);
+	    this.model.bind("change:f1", this.change_f1, this);
+
+	    this.model.bind("error:values", this.error_values, this);
+	},
+
+	update_label: function (name, value) {
+	    if (name==="prevalence" || name==="precision" || name==="recall") {
+		$(this.el).find("input."+name).attr({
+		    "value": s.sprintf("%0.2f",Number(value))
+		});
+	    }
+	    else {
+		$(this.el).find("span."+name).html(
+		    s.sprintf("%0.2f",Number(value))
+		);
+	    }
+	},
+
+	// the change_ methods are used to effectively re-render the
+	// slider and text inputs whenever the model changes.
+	change_prevalence: function (model, value) {
+	    $("#prevalence").slider({value: value});
+	    this.update_label("prevalence", value);
+	},
+	change_precision: function (model, value) {
+	    $("#precision").slider({value: value});
+	    this.update_label("precision", value);
+	},
+	change_recall: function (model, value) {
+	    $("#recall").slider({value: value});
+	    this.update_label("recall", value);
+	},
+	change_f1: function () {
+	    var value = this.model.f1();
+	    $("#f1").css({"width": 100*value+'%'});
+	    this.update_label("f1", value);
+	},
+
+	error_values: function (is_error, attr_name) {
+	    if (is_error) {
+		var change_method = "change_" + attr_name;
+
+		$('#'+attr_name).parent().addClass("error");
+
+		// on error, reset the values of the various
+		// labels. sliders are handled separately.
+		this[change_method](this.model,this.model.get(attr_name));
+		this.change_f1();
+	    }
+	    else {
+		$(".control").removeClass("error");
+	    }
+	},
+	
+
+	input_prevalence: function () {
+	    var x = Number($("input.prevalence").attr("value"));
+	    this.model.set({prevalence: x});
+	    $("#prevalence").attr({"value": x});
+	    $(".scenario").removeClass("selected");
+	    this.change_f1();
+	},
+	input_precision: function () {
+	    var x = Number($("input.precision").attr("value"));
+	    this.model.set({precision: x});
+	    $("#precision").attr({"value": x});
+	    $(".scenario").removeClass("selected");
+	    this.change_f1();
+	},
+	input_recall: function () {
+	    var x = Number($("input.recall").attr("value"));
+	    this.model.set({recall: x});
+	    $("#recall").attr({"value": x});
+	    $(".scenario").removeClass("selected");
+	    this.change_f1();
+	},
+
+	// this method is used to set particular scenarios to really
+	// quickly see different modes of reviewer accuracy
+	set_scenario: function (args) {
+
+	    // manipulate the selected scenario classes
+	    $(".scenario").removeClass("selected");
+	    $(args.scenario).addClass("selected");
+
+	    var set_args = {};
+	    if (args.prevalence !== undefined) {
+		set_args.prevalence = args.prevalence;
+	    }
+	    if (args.precision !== undefined) {
+		set_args.precision = args.precision;
+	    }
+	    if (args.recall !== undefined) {
+		set_args.recall = args.recall;
+	    }
+	    this.model.set(set_args);
+	},
+
+	render: function () {
+
+	    // initialize the prevalence element
+	    $(this.el).append(
+	    	'<div class="first control">'+
+	    	'<label class="prevalence" for="prevalence">prevalence</label>'+
+	    	'<div id="prevalence" ></div>'+
+	    	'<input type="number" class="prevalence" min=0 max=1 step=.01 value="" />'+
+	    	"</div>"
+	    );
+	    $(this.el).append(
+	    	'<div class="control">'+
+	    	'<label class="precision" for="precision">precision</label>'+
+	    	'<div id="precision" ></div>'+
+	    	'<input type="number" class="precision" min=0 max=1 step=0.01 value="" />'+
+	    	"</div>"
+	    );
+	    $(this.el).append(
+	    	'<div class="control">'+
+	    	'<label class="recall" for="recall">recall</label>'+
+	    	'<div id="recall" ></div>'+
+	    	'<input type="number" class="recall" min=0 max=1 step=0.01 value="" />'+
+	    	"</div>"
+	    );
+
+	    $(this.el).append(
+		'<div class="control">'+
+		'<label class="f1" for="f1">f1</label>'+
+		'<div id="f1_container" class="ui-slider ui-slider-horizontal ui-widget ui-widget-content ui-corner-all"><div id="f1" class="ui-slider ui-slider-horizontal ui-widget ui-widget-content ui-corner-all"></div></div>'+
+		'<span class="f1"></span>'+
+		"</div>"
+	    );
+
+	    // slider js
+	    var temper = this;
+
+	    // UI slider function
+	    $("#prevalence").slider({
+		value:temper.model.get("prevalence"),
+		min:0,
+		max:1.0,
+		step:.01,
+		slide: function(event, ui) {
+		    var args = {"prevalence": ui.value};
+		    temper.model.set(args);
+		    return temper.model.is_valid_triplet(args);
+		}
+	    });			     
+
+	    // UI slider for precision
+	    $("#precision").slider({
+		value:temper.model.get("precision"),
+		min:0,
+		max:1.0,
+		step:.01,
+		slide: function(event, ui) {
+		    var args = {"precision": ui.value};
+		    temper.model.set(args);
+		    return temper.model.is_valid_triplet(args);
+		}
+	    });			     
+	    
+	    // UI slider for recall
+	    $("#recall").slider({
+		value:temper.model.get("recall"),
+		min:0,
+		max:1.0,
+		step:.01,
+		slide: function(event, ui) {
+		    var args = {"recall": ui.value};
+		    temper.model.set(args);
+		    return temper.model.is_valid_triplet(args);
+		}
+	    });			     
+	    
+	    // update the labels of the sliders
+	    this.update_label("prevalence", this.model.get("prevalence"));
+	    this.update_label("precision", this.model.get("precision"));
+	    this.update_label("recall", this.model.get("recall"));
+	    this.update_label("f1", this.model.f1());
+
+	    // add scenarios for presetting the confusion matrix to
+	    // different scenarios
+	    $(this.el).append(
+	    	'<div class="current scenario">'+
+	    	'Current reviewers'+
+	    	'</div>'
+	    );
+	    $(this.el).append(
+	    	'<div class="lazy scenario">'+
+	    	'100% responsive reviewers'+
+	    	'</div>'
+	    );
+	    $(this.el).append(
+	    	'<div class="random scenario">'+
+	    	'Coin flip reviewers'+
+	    	'</div>'
+	    );
+	    $(this.el).append(
+	    	'<div class="trec scenario">'+
+	    	'TREC reviewers'+
+	    	'</div>'
+	    );
+	    $(".current.scenario").click(function (matrix_view) { 
+	    	return function (event) {
+		  var url="hmmmm.json";
+		    $.getJSON(url, function(data){
+			matrix_view.set_scenario({
+			    scenario: this,
+			    prevalence: data.current_values.prevalence,
+			    precision: data.current_values.precision,
+			    recall: data.current_values.recall
+			});
+		    });
+		    return false;
+	    	}
+	    }(this));
+	    
+	    $(".lazy.scenario").click(function (matrix_view) { 
+	    	return function (event) {
+	    	    matrix_view.set_scenario({
+			scenario: this,
+	    		precision: 0,
+	    		recall: 1
+	    	    });
+	    	    return false;
+	    	}
+	    }(this));
+	    $(".random.scenario").click(function (matrix_view) { 
+	    	return function (event) {
+	    	    var p = matrix_view.model.get("prevalence");
+	    	    var n = matrix_view.model.get("n_observations");
+	    	    var nr = p*n;
+	    	    var nnr = n - nr;
+	    	    var tp = 0.5*nr;
+	    	    var fp = 0.5*nnr;
+	    	    var precision = tp / (tp + fp);
+		    
+	    	    matrix_view.set_scenario({
+			scenario: this,
+	    	    	precision: precision,
+	    	    	recall: 0.5
+	    	    });
+	    	    return false;
+	    	}
+	    }(this));
+	    $(".trec.scenario").click(function (matrix_view) { 
+	    	return function (event) {
+	    	    matrix_view.set_scenario({
+			scenario: this,
+	    	    	precision: 0.55,
+	    	    	recall: 0.51,
+	    	    });
+	    	    return false;
+	    	}
+	    }(this));
+	    
+	    return this;
+	}
+	
+    });
+
+    
+    confusion.views.Matrix = Backbone.View.extend({
+
+	
+
+	render: function () {
+
+	    // instantiate the canvas
+	    var width = $(this.el).width();
+	    var height = $(this.el).height();
+	    this.canvas = Raphael(this.el, width, height);
+	    this.canvas.label_padding = width / 8;
+	    this.canvas.controls_padding = 0;
+	    this.canvas.large_font_size = this.canvas.label_padding/2*0.9;
+	    this.canvas.small_font_size = this.canvas.label_padding/2*0.8;
+
+	    // render the quadrants (which automatically renders all
+	    // of the observations in the quadrants)
+	    this.quadrants = {};
+	    _.each(this.model.quadrants, function (quadrant, label, obj) {
+		this.quadrants[label] = new confusion.views.Quadrant({
+		    model: quadrant,
+		    canvas: this.canvas
+		}).render();
+	    }, this);
+
+	    // now that all of the quadrants have been rendered,
+	    // re-stack the quadrants and labels to make sure that the
+	    // observations always show up between the cell and the
+	    // label
+	    _.each(this.quadrants, function (quadrant_view, label, obj) {
+		quadrant_view.cell.toBack();
+		quadrant_view.label.toFront();
+	    }, this);
+
+
+	    // label the confusion matrix
+	    var w=this.canvas.width-this.canvas.controls_padding;
+	    var p=this.canvas.label_padding;
+	    var h=this.canvas.height;
+	    var attrs={
+		"font-size": this.canvas.small_font_size,
+		"fill": "rgb(96,96,96)", //"rgb(196,196,196)"
+		"font-family": "CallunaSansRegular"
+	    };
+	    var attrs2= {
+		"font-size": this.canvas.large_font_size,
+		"fill": "rgb(96,96,96)", //"rgb(196,196,196)"
+		"font-family": "CallunaSansRegular",
+		"font-weight": "bold",
+	    }
+
+	    this.labels = this.canvas.set();
+
+	    this.labels.push(this.canvas.text(
+		(w-p)/2+p,
+		p/4,
+		"Classifier"
+	    ).attr(attrs2));
+	    this.labels.push(this.canvas.text(
+		(w-p)/4+p,
+		3*p/4,
+		"Positive"
+	    ).attr(attrs));
+	    this.labels.push(this.canvas.text(
+		3*(w-p)/4+p,
+		3*p/4,
+		"Negative"
+	    ).attr(attrs));
+	    this.labels.push(this.canvas.text(
+		p/4,
+		(w-p)/2+p,
+		"Truth"
+	    ).attr(attrs2).rotate(270));
+	    this.labels.push(this.canvas.text(
+		3*p/4,
+		(w-p)/4+p,
+		"Positive"
+	    ).attr(attrs).rotate(270));
+	    this.labels.push(this.canvas.text(
+		3*p/4,
+		3*(w-p)/4+p,
+		"Negative"
+	    ).attr(attrs).rotate(270));
+	    // _.each(this.quadrants, function (quadrant_view, label) {
+	    // 	this.labels.push(quadrant_view.label);		
+	    // }, this);
+
+	    return this;
+	}
+	
+	});
+
+
+
+})();
+</script>  
+
+<script type="text/javascript">
+"use strict";
+
+$(function () {
+
+  // now need to render the confusion matrix using backbone
+  // to make sure that this is rendered after all the slide
+  // stuff has been set up
+  var matrix = new confusion.models.Matrix();
+  var view = new confusion.views.Matrix({
+    el: "#confusion_matrix",
+    model: matrix
+  }).render();
+  
+  // instantiate the view for the controls
+  var view = new confusion.views.Controls({
+    el: "#confusion_matrix_controls",
+    model: matrix
+  }).render();	    
+
+});
+</script>  
+
+
+
+
+  </body>
+  
+</html>
